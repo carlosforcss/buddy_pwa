@@ -1,10 +1,10 @@
 // Wait for the DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Performance optimization: Use passive event listeners
     const options = { passive: true };
 
     // Initialize session first
-    initializeSession();
+    await initializeSession();
     
     // Initialize components
     initializeNavigation();
@@ -12,7 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeContactForm();
     initializeLazyLoading();
     initializeOfflineDetection();
-    initializeCamera();
+    
+    // Initialize camera first, then controls
+    await initializeCamera();
     initializeControls();
 });
 
@@ -181,6 +183,7 @@ if ('performance' in window && 'memory' in window.performance) {
 // Initialize camera view
 async function initializeCamera() {
     const videoElement = document.getElementById('camera-feed');
+    const cameraStatus = document.getElementById('camera-status');
     
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -193,10 +196,24 @@ async function initializeCamera() {
         });
         
         videoElement.srcObject = stream;
+
+        // Return a promise that resolves when the video is ready to play
+        return new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+                videoElement.play();
+                if (cameraStatus) {
+                    cameraStatus.textContent = 'Camera ready';
+                }
+                resolve();
+            };
+        });
     } catch (error) {
         console.error('Error accessing camera:', error);
-        // Show error message to user (consider using screen reader friendly notification)
+        if (cameraStatus) {
+            cameraStatus.textContent = 'Camera access denied';
+        }
         showErrorMessage('Camera access is required for this application to work.');
+        throw error; // Re-throw to handle it in the calling function
     }
 }
 
@@ -204,6 +221,7 @@ async function initializeCamera() {
 function initializeControls() {
     const audioButton = document.getElementById('audio-button');
     const captureButton = document.getElementById('capture-button');
+    const videoElement = document.getElementById('camera-feed');
     let isRecording = false;
 
     // Audio recording button
@@ -226,20 +244,60 @@ function initializeControls() {
     });
 
     // Capture button
-    captureButton.addEventListener('click', () => {
-        // Provide tactile feedback
-        if (navigator.vibrate) {
-            navigator.vibrate(50);
+    captureButton.addEventListener('click', async () => {
+        if (!currentSession) {
+            showErrorMessage('No active session. Please refresh the page.');
+            return;
         }
-        
-        // Visual feedback
-        captureButton.style.transform = 'scale(0.95)';
-        setTimeout(() => {
-            captureButton.style.transform = 'scale(1)';
-        }, 100);
 
-        // Announce for screen readers
-        announceToScreenReader('Picture taken');
+        try {
+            // Create a canvas element to capture the image
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const context = canvas.getContext('2d');
+            
+            // Draw the current video frame to the canvas
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // Convert the canvas to a blob
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.85);
+            });
+
+            // Create form data and append the image
+            const formData = new FormData();
+            formData.append('image', blob, 'capture.jpg');
+
+            // Send the image to the server
+            const response = await fetch(`http://localhost/conversations/image/${currentSession.id}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            // Provide feedback
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
+            // Visual feedback
+            captureButton.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                captureButton.style.transform = 'scale(1)';
+            }, 100);
+
+            // Announce for screen readers
+            announceToScreenReader('Picture taken and sent successfully');
+            
+            console.log('Image sent successfully');
+        } catch (error) {
+            console.error('Error capturing and sending image:', error);
+            showErrorMessage('Failed to capture and send image. Please try again.');
+        }
     });
 
     // Handle keyboard controls

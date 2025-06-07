@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Performance optimization: Use passive event listeners
     const options = { passive: true };
 
+    // ALPHA VERSION: Clear all caches and unregister service workers
+    await clearAllCaches();
+
     // Initialize session first
     await initializeSession();
     
@@ -340,8 +343,13 @@ function initializeControls() {
             formData.append('image', blob, 'capture.jpg');
 
             const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            const url = `${protocol}//${hostname}:3000/conversations/image/${currentSession.id}`;
+            
+            console.log('🔍 Uploading image to:', url);
+            
             // Send the image to the server using port 3000
-            const response = await fetch(`http://${hostname}:3000/conversations/image/${currentSession.id}`, {
+            const response = await fetch(url, {
                 method: 'POST',
                 body: formData
             });
@@ -400,7 +408,8 @@ function showErrorMessage(message) {
     document.body.appendChild(errorDiv);
 }
 
-// Service Worker registration
+// Service Worker registration - DISABLED FOR ALPHA VERSION
+/*
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js')
@@ -412,6 +421,7 @@ if ('serviceWorker' in navigator) {
             });
     });
 }
+*/
 
 // Session management
 let currentSession = null;
@@ -420,7 +430,13 @@ let socket = null;
 async function initializeSession() {
     try {
         const hostname = window.location.hostname;
-        const response = await fetch(`http://${hostname}:3000/conversations/sessions`, {
+        const protocol = window.location.protocol;
+        const url = `${protocol}//${hostname}:3000/conversations/sessions`;
+        
+        console.log('🔍 Making session request to:', url);
+        console.log('🔍 Current location:', window.location.href);
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -518,10 +534,13 @@ function initializeWebSocket(sessionId) {
                 socket.close();
             }
 
-            // Get the current hostname
+            // Get the current hostname and determine WebSocket protocol
             const hostname = window.location.hostname;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             // Create WebSocket URL with port 3000
-            const wsUrl = `ws://${hostname}:3000/conversations/realtime/${sessionId}`;
+            const wsUrl = `${wsProtocol}//${hostname}:3000/conversations/realtime/${sessionId}`;
+
+            console.log('🔍 WebSocket connecting to:', wsUrl);
 
             // Create new WebSocket connection
             socket = new WebSocket(wsUrl);
@@ -559,4 +578,42 @@ function initializeWebSocket(sessionId) {
             reject(error);
         }
     });
-} 
+}
+
+// Add cache clearing function
+async function clearAllCaches() {
+    try {
+        // Unregister all service workers
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+                console.log('🗑️ Unregistered service worker');
+            }
+        }
+        
+        // Clear all caches
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(
+                cacheNames.map(cacheName => {
+                    console.log('🗑️ Deleting cache:', cacheName);
+                    return caches.delete(cacheName);
+                })
+            );
+        }
+        
+        console.log('✅ All caches cleared and service workers unregistered');
+    } catch (error) {
+        console.error('Error clearing caches:', error);
+    }
+}
+
+// Add to window for manual debugging
+window.clearAllCaches = clearAllCaches;
+window.debugUrls = () => {
+    console.log('🔍 Current location:', window.location.href);
+    console.log('🔍 Hostname:', window.location.hostname);
+    console.log('🔍 Protocol:', window.location.protocol);
+    console.log('🔍 Port:', window.location.port);
+}; 

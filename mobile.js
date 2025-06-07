@@ -339,8 +339,9 @@ function initializeControls() {
             const formData = new FormData();
             formData.append('image', blob, 'capture.jpg');
 
-            // Send the image to the server
-            const response = await fetch(`http://localhost/conversations/image/${currentSession.id}`, {
+            const hostname = window.location.hostname;
+            // Send the image to the server using port 3000
+            const response = await fetch(`http://${hostname}:3000/conversations/image/${currentSession.id}`, {
                 method: 'POST',
                 body: formData
             });
@@ -418,7 +419,8 @@ let socket = null;
 
 async function initializeSession() {
     try {
-        const response = await fetch('http://localhost/conversations/sessions', {
+        const hostname = window.location.hostname;
+        const response = await fetch(`http://${hostname}:3000/conversations/sessions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -516,8 +518,13 @@ function initializeWebSocket(sessionId) {
                 socket.close();
             }
 
+            // Get the current hostname
+            const hostname = window.location.hostname;
+            // Create WebSocket URL with port 3000
+            const wsUrl = `ws://${hostname}:3000/conversations/realtime/${sessionId}`;
+
             // Create new WebSocket connection
-            socket = new WebSocket(`ws://localhost/conversations/realtime/${sessionId}`);
+            socket = new WebSocket(wsUrl);
 
             socket.addEventListener('open', () => {
                 console.log('WebSocket connection established');

@@ -441,6 +441,73 @@ async function initializeSession() {
     }
 }
 
+// Audio playback manager
+const AudioManager = {
+    context: null,
+    playbackQueue: [],
+    isPlaying: false,
+    sampleRate: 24000,
+
+    initialize() {
+        if (!this.context) {
+            this.context = new AudioContext({ sampleRate: this.sampleRate });
+        }
+    },
+
+    async playPcmChunk(arrayBuffer) {
+        // Add to queue and process
+        this.playbackQueue.push(arrayBuffer);
+        if (!this.isPlaying) {
+            this.processQueue();
+        }
+    },
+
+    async processQueue() {
+        if (this.playbackQueue.length === 0) {
+            this.isPlaying = false;
+            return;
+        }
+
+        this.isPlaying = true;
+        const arrayBuffer = this.playbackQueue.shift();
+        
+        try {
+            // Convert Int16 PCM to Float32
+            const pcmData = new Int16Array(arrayBuffer);
+            const audioBuffer = this.context.createBuffer(1, pcmData.length, this.sampleRate);
+            const channelData = audioBuffer.getChannelData(0);
+            
+            // Convert samples
+            for (let i = 0; i < pcmData.length; i++) {
+                channelData[i] = pcmData[i] / (pcmData[i] < 0 ? 0x8000 : 0x7FFF);
+            }
+            
+            // Create and configure source
+            const source = this.context.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(this.context.destination);
+            
+            // When this chunk ends, process the next one
+            source.onended = () => {
+                this.processQueue();
+            };
+            
+            // Play the audio
+            source.start();
+            console.log('Playing audio chunk, remaining in queue:', this.playbackQueue.length);
+        } catch (error) {
+            console.error('Error playing audio chunk:', error);
+            // Continue with queue even if there's an error
+            this.processQueue();
+        }
+    }
+};
+
+// Initialize AudioManager when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    AudioManager.initialize();
+});
+
 function initializeWebSocket(sessionId) {
     return new Promise((resolve, reject) => {
         try {
@@ -465,24 +532,8 @@ function initializeWebSocket(sessionId) {
                 } catch (e) {
                     // If not JSON, treat as audio bytes
                     const arrayBuffer = await event.data.arrayBuffer();
-                    const audioContext = new AudioContext({ sampleRate: 24000 });
-                    
-                    // Convert Int16 PCM to Float32
-                    const pcmData = new Int16Array(arrayBuffer);
-                    const audioBuffer = audioContext.createBuffer(1, pcmData.length, 24000);
-                    const channelData = audioBuffer.getChannelData(0);
-                    
-                    for (let i = 0; i < pcmData.length; i++) {
-                        channelData[i] = pcmData[i] / (pcmData[i] < 0 ? 0x8000 : 0x7FFF);
-                    }
-                    
-                    // Play the audio
-                    const source = audioContext.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(audioContext.destination);
-                    source.start();
-                    
-                    console.log('Playing received audio');
+                    // Use AudioManager to handle the PCM data
+                    await AudioManager.playPcmChunk(arrayBuffer);
                 }
             });
 

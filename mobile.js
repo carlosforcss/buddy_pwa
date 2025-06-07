@@ -223,24 +223,94 @@ function initializeControls() {
     const captureButton = document.getElementById('capture-button');
     const videoElement = document.getElementById('camera-feed');
     let isRecording = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
 
     // Audio recording button
-    audioButton.addEventListener('click', () => {
-        isRecording = !isRecording;
-        audioButton.classList.toggle('recording', isRecording);
-        
-        // Update aria-label for screen readers
-        audioButton.setAttribute('aria-label', 
-            isRecording ? 'Stop audio recording' : 'Start audio recording'
-        );
-        
-        // Vibrate for tactile feedback (if supported)
-        if (navigator.vibrate) {
-            navigator.vibrate(isRecording ? [100, 50, 100] : 100);
-        }
+    audioButton.addEventListener('click', async () => {
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: 24000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm',
+                    audioBitsPerSecond: 256000
+                });
 
-        // Announce state change for screen readers
-        announceToScreenReader(isRecording ? 'Recording started' : 'Recording stopped');
+                mediaRecorder.addEventListener('dataavailable', event => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                });
+
+                mediaRecorder.addEventListener('stop', async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    
+                    // Convert to raw PCM
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    const audioContext = new AudioContext({ sampleRate: 24000 });
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    
+                    // Get PCM data
+                    const pcmData = audioBuffer.getChannelData(0);
+                    const pcmBuffer = new Int16Array(pcmData.length);
+                    
+                    // Convert Float32 to Int16
+                    for (let i = 0; i < pcmData.length; i++) {
+                        const s = Math.max(-1, Math.min(1, pcmData[i]));
+                        pcmBuffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+                    
+                    // Send to WebSocket
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(pcmBuffer.buffer);
+                    }
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                });
+
+                mediaRecorder.start();
+                isRecording = true;
+                audioButton.classList.add('recording');
+                audioButton.querySelector('i').className = 'fas fa-stop';
+                
+                // Update aria-label for screen readers
+                audioButton.setAttribute('aria-label', 'Stop audio recording');
+                
+                // Vibrate for tactile feedback
+                if (navigator.vibrate) {
+                    navigator.vibrate([100, 50, 100]);
+                }
+
+                announceToScreenReader('Recording started');
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                showErrorMessage('Failed to start recording. Please check microphone permissions.');
+            }
+        } else {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            audioButton.classList.remove('recording');
+            audioButton.querySelector('i').className = 'fas fa-microphone';
+            audioButton.setAttribute('aria-label', 'Start audio recording');
+            
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+
+            announceToScreenReader('Recording stopped');
+        }
     });
 
     // Capture button
@@ -387,10 +457,33 @@ function initializeWebSocket(sessionId) {
                 resolve();
             });
 
-            socket.addEventListener('message', (event) => {
-                const data = JSON.parse(event.data);
-                console.log('Received message:', data);
-                // Handle incoming messages here
+            socket.addEventListener('message', async (event) => {
+                try {
+                    // Try to parse as JSON first
+                    const data = JSON.parse(event.data);
+                    console.log('Received JSON message:', data);
+                } catch (e) {
+                    // If not JSON, treat as audio bytes
+                    const arrayBuffer = await event.data.arrayBuffer();
+                    const audioContext = new AudioContext({ sampleRate: 24000 });
+                    
+                    // Convert Int16 PCM to Float32
+                    const pcmData = new Int16Array(arrayBuffer);
+                    const audioBuffer = audioContext.createBuffer(1, pcmData.length, 24000);
+                    const channelData = audioBuffer.getChannelData(0);
+                    
+                    for (let i = 0; i < pcmData.length; i++) {
+                        channelData[i] = pcmData[i] / (pcmData[i] < 0 ? 0x8000 : 0x7FFF);
+                    }
+                    
+                    // Play the audio
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+                    source.start();
+                    
+                    console.log('Playing received audio');
+                }
             });
 
             socket.addEventListener('error', (error) => {

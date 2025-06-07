@@ -286,6 +286,7 @@ if ('serviceWorker' in navigator) {
 
 // Session management
 let currentSession = null;
+let socket = null;
 
 async function initializeSession() {
     try {
@@ -303,8 +304,50 @@ async function initializeSession() {
         const sessionData = await response.json();
         currentSession = sessionData;
         console.log('Session initialized:', currentSession);
+        
+        // Initialize WebSocket connection with the session ID
+        await initializeWebSocket(currentSession.id);
     } catch (error) {
         console.error('Error initializing session:', error);
         showErrorMessage('Failed to initialize session. Please try refreshing the page.');
     }
+}
+
+function initializeWebSocket(sessionId) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Close existing socket if any
+            if (socket) {
+                socket.close();
+            }
+
+            // Create new WebSocket connection
+            socket = new WebSocket(`ws://localhost/conversations/realtime/${sessionId}`);
+
+            socket.addEventListener('open', () => {
+                console.log('WebSocket connection established');
+                resolve();
+            });
+
+            socket.addEventListener('message', (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received message:', data);
+                // Handle incoming messages here
+            });
+
+            socket.addEventListener('error', (error) => {
+                console.error('WebSocket error:', error);
+                reject(error);
+            });
+
+            socket.addEventListener('close', () => {
+                console.log('WebSocket connection closed');
+                // Implement reconnection logic if needed
+                socket = null;
+            });
+        } catch (error) {
+            console.error('Error initializing WebSocket:', error);
+            reject(error);
+        }
+    });
 } 

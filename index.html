@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Accessibility tool for blind people">
+    <meta name="theme-color" content="#000000">
+    <title>Vision Assistant</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+    <!-- iOS support -->
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Vision Assistant">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <main class="camera-view">
+        <div id="camera-status" class="camera-status">Initializing camera...</div>
+        <video id="camera-feed" autoplay playsinline></video>
+        <button id="start-camera" class="control-button camera-start-button">
+            <i class="fas fa-video"></i> Start Camera
+        </button>
+    </main>
+
+    <footer class="control-panel">
+        <button id="audio-button" class="control-button" aria-label="Start or stop audio recording">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <button id="capture-button" class="control-button" aria-label="Take a picture">
+            <i class="fas fa-camera"></i>
+        </button>
+    </footer>
+
+    <script src="mobile.js" defer></script>
+</body>
+</html> 

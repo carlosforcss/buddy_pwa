@@ -344,11 +344,11 @@ function initializeControls() {
 
             const hostname = window.location.hostname;
             const protocol = window.location.protocol;
-            const url = `${protocol}//${hostname}:3000/conversations/image/${currentSession.id}`;
+            const url = `${protocol}//${hostname}/api/conversations/image/${currentSession.id}`;
             
             console.log('🔍 Uploading image to:', url);
             
-            // Send the image to the server using port 3000
+            // Send the image to the server
             const response = await fetch(url, {
                 method: 'POST',
                 body: formData
@@ -431,7 +431,7 @@ async function initializeSession() {
     try {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
-        const url = `${protocol}//${hostname}:3000/conversations/sessions`;
+        const url = `${protocol}//${hostname}/api/conversations/sessions`;
         
         console.log('🔍 Making session request to:', url);
         console.log('🔍 Current location:', window.location.href);
@@ -537,8 +537,8 @@ function initializeWebSocket(sessionId) {
             // Get the current hostname and determine WebSocket protocol
             const hostname = window.location.hostname;
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            // Create WebSocket URL with port 3000
-            const wsUrl = `${wsProtocol}//${hostname}:3000/conversations/realtime/${sessionId}`;
+            // Create WebSocket URL
+            const wsUrl = `${wsProtocol}//${hostname}/api/conversations/realtime/${sessionId}`;
 
             console.log('🔍 WebSocket connecting to:', wsUrl);
 

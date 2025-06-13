@@ -41,7 +41,7 @@ const CONFIG = {
         if (isLocalhost) {
             return 'ws://localhost:8000';
         } else {
-            return 'wss://www.buddyvision.app';
+            return 'wss://buddyvision.app';
         }
     }
 };

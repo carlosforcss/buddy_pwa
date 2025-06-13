@@ -99,17 +99,28 @@ async function initializeCamera() {
 
 // Initialize control buttons
 function initializeControls() {
-    const audioButton = document.getElementById('audio-button');
-    const captureButton = document.getElementById('capture-button');
+    const captureAndRecordButton = document.getElementById('capture-and-record-button');
     const videoElement = document.getElementById('camera-feed');
     let isRecording = false;
     let mediaRecorder = null;
     let audioChunks = [];
 
-    // Audio recording button
-    audioButton.addEventListener('click', async () => {
+    // Combined capture and record button
+    captureAndRecordButton.addEventListener('click', async () => {
         if (!isRecording) {
+            if (!currentSession) {
+                showErrorMessage('No active session. Please refresh the page.');
+                return;
+            }
+
+            // Visual feedback
+            captureAndRecordButton.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                captureAndRecordButton.style.transform = 'scale(1)';
+            }, 100);
+
             try {
+                // Start audio recording immediately
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 24000,
@@ -160,11 +171,9 @@ function initializeControls() {
 
                 mediaRecorder.start();
                 isRecording = true;
-                audioButton.classList.add('recording');
-                audioButton.querySelector('i').className = 'fas fa-stop';
-                
-                // Update aria-label for screen readers
-                audioButton.setAttribute('aria-label', 'Stop audio recording');
+                captureAndRecordButton.classList.add('recording');
+                captureAndRecordButton.querySelector('i').className = 'fas fa-stop';
+                captureAndRecordButton.setAttribute('aria-label', 'Stop recording');
                 
                 // Vibrate for tactile feedback
                 if (navigator.vibrate) {
@@ -172,18 +181,50 @@ function initializeControls() {
                 }
 
                 announceToScreenReader('Recording started');
+
+                // Capture and send image in parallel
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                const context = canvas.getContext('2d');
+                
+                // Draw the current video frame to the canvas
+                context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                
+                // Convert the canvas to a blob
+                const blob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, 'image/jpeg', 0.85);
+                });
+
+                // Create form data and append the image
+                const formData = new FormData();
+                formData.append('image', blob, 'capture.jpg');
+
+                const url = `${CONFIG.getBaseUrl()}/api/conversations/image/${currentSession.id}`;
+                
+                console.log('🔍 Uploading image to:', url);
+                
+                // Send the image to the server
+                fetch(url, {
+                    method: 'POST',
+                    body: formData
+                }).catch(error => {
+                    console.error('Error uploading image:', error);
+                    showErrorMessage('Failed to upload image, but recording continues.');
+                });
+
             } catch (error) {
-                console.error('Error starting recording:', error);
-                showErrorMessage('Failed to start recording. Please check microphone permissions.');
+                console.error('Error in capture and record process:', error);
+                showErrorMessage('Failed to start recording. Please try again.');
             }
         } else {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
             }
             isRecording = false;
-            audioButton.classList.remove('recording');
-            audioButton.querySelector('i').className = 'fas fa-microphone';
-            audioButton.setAttribute('aria-label', 'Start audio recording');
+            captureAndRecordButton.classList.remove('recording');
+            captureAndRecordButton.querySelector('i').className = 'fas fa-camera';
+            captureAndRecordButton.setAttribute('aria-label', 'Take a picture and start recording');
             
             if (navigator.vibrate) {
                 navigator.vibrate(100);
@@ -193,77 +234,10 @@ function initializeControls() {
         }
     });
 
-    // Capture button
-    captureButton.addEventListener('click', async () => {
-        if (!currentSession) {
-            showErrorMessage('No active session. Please refresh the page.');
-            return;
-        }
-
-        // Play camera shutter sound immediately
-        const shutterSound = new Audio('click.wav');
-        shutterSound.play().catch(error => console.error('Error playing shutter sound:', error));
-
-        // Visual feedback
-        captureButton.style.transform = 'scale(0.95)';
-        setTimeout(() => {
-            captureButton.style.transform = 'scale(1)';
-        }, 100);
-
-        try {
-            // Create a canvas element to capture the image
-            const canvas = document.createElement('canvas');
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
-            const context = canvas.getContext('2d');
-            
-            // Draw the current video frame to the canvas
-            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            
-            // Convert the canvas to a blob
-            const blob = await new Promise(resolve => {
-                canvas.toBlob(resolve, 'image/jpeg', 0.85);
-            });
-
-            // Create form data and append the image
-            const formData = new FormData();
-            formData.append('image', blob, 'capture.jpg');
-
-            const url = `${CONFIG.getBaseUrl()}/api/conversations/image/${currentSession.id}`;
-            
-            console.log('🔍 Uploading image to:', url);
-            
-            // Send the image to the server
-            const response = await fetch(url, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            // Provide feedback
-            if (navigator.vibrate) {
-                navigator.vibrate(50);
-            }
-            
-            // Announce for screen readers
-            announceToScreenReader('Picture taken and sent successfully');
-            
-            console.log('Image sent successfully');
-        } catch (error) {
-            console.error('Error capturing and sending image:', error);
-            showErrorMessage('Failed to capture and send image. Please try again.');
-        }
-    });
-
     // Handle keyboard controls
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Space') {
-            captureButton.click();
-        } else if (e.code === 'KeyR') {
-            audioButton.click();
+            captureAndRecordButton.click();
         }
     });
 }

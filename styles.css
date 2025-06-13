@@ -66,17 +66,13 @@ html, body {
     background-color: rgba(255, 255, 255, 0.4);
 }
 
-#audio-button {
-    background-color: rgba(255, 82, 82, 0.3);
+#capture-and-record-button {
+    background-color: rgba(82, 255, 82, 0.3);
 }
 
-#audio-button.recording {
+#capture-and-record-button.recording {
     background-color: rgba(255, 82, 82, 0.6);
     animation: pulse 1.5s infinite;
-}
-
-#capture-button {
-    background-color: rgba(82, 255, 82, 0.3);
 }
 
 /* Animations */
@@ -97,7 +93,7 @@ html, body {
     .control-button {
         transition: none;
     }
-    #audio-button.recording {
+    #capture-and-record-button.recording {
         animation: none;
     }
 }

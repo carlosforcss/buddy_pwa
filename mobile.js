@@ -9,168 +9,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize session first
     await initializeSession();
     
-    // Initialize components
-    initializeNavigation();
-    initializeInstallButton();
-    initializeContactForm();
-    initializeLazyLoading();
-    initializeOfflineDetection();
-    
     // Initialize camera first, then controls
     await initializeCamera();
     initializeControls();
+    AudioManager.initialize();
 });
 
-// Navigation handling
-function initializeNavigation() {
-    const navLinks = document.querySelectorAll('.nav a');
+// Configuration based on environment
+const CONFIG = {
+    getBaseUrl() {
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' || 
+                           window.location.hostname.startsWith('192.168.') ||
+                           window.location.hostname.startsWith('10.') ||
+                           window.location.hostname.endsWith('.local');
+        
+        if (isLocalhost) {
+            return 'http://localhost:8000';
+        } else {
+            return 'https://www.buddyvision.app';
+        }
+    },
     
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetId = link.getAttribute('href').substring(1);
-            const targetSection = document.getElementById(targetId);
-            
-            if (targetSection) {
-                // Smooth scroll to section
-                targetSection.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        });
-    });
-}
+    getWebSocketUrl() {
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' || 
+                           window.location.hostname.startsWith('192.168.') ||
+                           window.location.hostname.startsWith('10.') ||
+                           window.location.hostname.endsWith('.local');
+        
+        if (isLocalhost) {
+            return 'ws://localhost:8000';
+        } else {
+            return 'wss://www.buddyvision.app';
+        }
+    }
+};
 
 // PWA Installation handling
 let deferredPrompt;
-function initializeInstallButton() {
-    const installButton = document.querySelector('.action-button');
-    
-    // Exit early if install button is not found
-    if (!installButton) {
-        console.warn('Install button not found in the DOM');
-        return;
-    }
-    
-    // Hide install button if PWA is already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-        installButton.style.display = 'none';
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        // Prevent Chrome 67 and earlier from automatically showing the prompt
-        e.preventDefault();
-        // Stash the event so it can be triggered later
-        deferredPrompt = e;
-        // Show the install button
-        installButton.style.display = 'block';
-    });
-
-    installButton.addEventListener('click', async () => {
-        if (!deferredPrompt) {
-            return;
-        }
-        // Show the install prompt
-        deferredPrompt.prompt();
-        // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-        // Clear the saved prompt since it can't be used again
-        deferredPrompt = null;
-        // Hide the install button
-        installButton.style.display = 'none';
-    });
-}
-
-// Contact form handling
-function initializeContactForm() {
-    const contactForm = document.getElementById('contact-form');
-    
-    if (contactForm) {
-        contactForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // Get form data
-            const formData = new FormData(contactForm);
-            const formObject = Object.fromEntries(formData);
-            
-            try {
-                // Simulate form submission (replace with actual API endpoint)
-                await submitForm(formObject);
-                alert('Message sent successfully!');
-                contactForm.reset();
-            } catch (error) {
-                console.error('Error submitting form:', error);
-                alert('Failed to send message. Please try again.');
-            }
-        });
-    }
-}
-
-// Simulated form submission function
-async function submitForm(data) {
-    // Check if online before attempting submission
-    if (!navigator.onLine) {
-        throw new Error('No internet connection');
-    }
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('Form data:', data);
-    // Add actual form submission logic here
-}
-
-// Lazy loading implementation
-function initializeLazyLoading() {
-    // Check if IntersectionObserver is supported
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    if (img.dataset.src) {
-                        img.src = img.dataset.src;
-                        img.removeAttribute('data-src');
-                        observer.unobserve(img);
-                    }
-                }
-            });
-        });
-
-        // Observe all images with data-src attribute
-        document.querySelectorAll('img[data-src]').forEach(img => {
-            imageObserver.observe(img);
-        });
-    }
-}
-
-// Offline detection
-function initializeOfflineDetection() {
-    const updateOnlineStatus = () => {
-        const status = navigator.onLine ? 'online' : 'offline';
-        console.log(`App is ${status}`);
-        document.body.dataset.connectionStatus = status;
-        
-        if (!navigator.onLine) {
-            showOfflineNotification();
-        }
-    };
-
-    window.addEventListener('online', updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-}
-
-function showOfflineNotification() {
-    const notification = document.createElement('div');
-    notification.className = 'offline-notification';
-    notification.innerHTML = `
-        <div class="offline-notification-content">
-            You are currently offline. Some features may be limited.
-            <button onclick="this.parentElement.parentElement.remove()">Dismiss</button>
-        </div>
-    `;
-    document.body.appendChild(notification);
-}
 
 // Performance monitoring
 if ('performance' in window && 'memory' in window.performance) {
@@ -342,9 +219,7 @@ function initializeControls() {
             const formData = new FormData();
             formData.append('image', blob, 'capture.jpg');
 
-            const hostname = window.location.hostname;
-            const protocol = window.location.protocol;
-            const url = `${protocol}//${hostname}/api/conversations/image/${currentSession.id}`;
+            const url = `${CONFIG.getBaseUrl()}/api/conversations/image/${currentSession.id}`;
             
             console.log('🔍 Uploading image to:', url);
             
@@ -408,30 +283,13 @@ function showErrorMessage(message) {
     document.body.appendChild(errorDiv);
 }
 
-// Service Worker registration - DISABLED FOR ALPHA VERSION
-/*
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-                console.log('ServiceWorker registration successful');
-            })
-            .catch(error => {
-                console.error('ServiceWorker registration failed:', error);
-            });
-    });
-}
-*/
-
 // Session management
 let currentSession = null;
 let socket = null;
 
 async function initializeSession() {
     try {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-        const url = `${protocol}//${hostname}/api/conversations/sessions`;
+        const url = `${CONFIG.getBaseUrl()}/api/conversations/sessions`;
         
         console.log('🔍 Making session request to:', url);
         console.log('🔍 Current location:', window.location.href);
@@ -521,11 +379,6 @@ const AudioManager = {
     }
 };
 
-// Initialize AudioManager when the page loads
-document.addEventListener('DOMContentLoaded', () => {
-    AudioManager.initialize();
-});
-
 function initializeWebSocket(sessionId) {
     return new Promise((resolve, reject) => {
         try {
@@ -534,11 +387,8 @@ function initializeWebSocket(sessionId) {
                 socket.close();
             }
 
-            // Get the current hostname and determine WebSocket protocol
-            const hostname = window.location.hostname;
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             // Create WebSocket URL
-            const wsUrl = `${wsProtocol}//${hostname}/api/conversations/realtime/${sessionId}`;
+            const wsUrl = `${CONFIG.getWebSocketUrl()}/api/conversations/realtime/${sessionId}`;
 
             console.log('🔍 WebSocket connecting to:', wsUrl);
 
@@ -613,7 +463,7 @@ async function clearAllCaches() {
 window.clearAllCaches = clearAllCaches;
 window.debugUrls = () => {
     console.log('🔍 Current location:', window.location.href);
-    console.log('🔍 Hostname:', window.location.hostname);
-    console.log('🔍 Protocol:', window.location.protocol);
-    console.log('🔍 Port:', window.location.port);
+    console.log('🔍 Base URL:', CONFIG.getBaseUrl());
+    console.log('🔍 WebSocket URL:', CONFIG.getWebSocketUrl());
+    console.log('🔍 Is localhost:', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 }; 

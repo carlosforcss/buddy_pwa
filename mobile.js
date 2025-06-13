@@ -200,6 +200,16 @@ function initializeControls() {
             return;
         }
 
+        // Play camera shutter sound immediately
+        const shutterSound = new Audio('click.wav');
+        shutterSound.play().catch(error => console.error('Error playing shutter sound:', error));
+
+        // Visual feedback
+        captureButton.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+            captureButton.style.transform = 'scale(1)';
+        }, 100);
+
         try {
             // Create a canvas element to capture the image
             const canvas = document.createElement('canvas');
@@ -238,12 +248,6 @@ function initializeControls() {
                 navigator.vibrate(50);
             }
             
-            // Visual feedback
-            captureButton.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                captureButton.style.transform = 'scale(1)';
-            }, 100);
-
             // Announce for screen readers
             announceToScreenReader('Picture taken and sent successfully');
             

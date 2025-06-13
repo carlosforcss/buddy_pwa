@@ -27,7 +27,7 @@ const CONFIG = {
         if (isLocalhost) {
             return 'http://localhost:8000';
         } else {
-            return 'https://www.buddyvision.app';
+            return 'https://buddyvision.app';
         }
     },
     

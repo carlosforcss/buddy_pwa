@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Accessibility tool for blind people">
+    <meta name="description" content="Herramienta de accesibilidad para personas con discapacidad visual">
     <meta name="theme-color" content="#000000">
-    <title>Vision Assistant</title>
+    <title>Asistente Visual - Herramienta de Accesibilidad</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.png">
@@ -13,24 +13,78 @@
     <link rel="apple-touch-icon" href="favicon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="Vision Assistant">
+    <meta name="apple-mobile-web-app-title" content="Asistente Visual">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <main class="camera-view">
-        <div id="camera-status" class="camera-status">Initializing camera...</div>
-        <video id="camera-feed" autoplay playsinline></video>
-        <button id="start-camera" class="control-button camera-start-button">
-            <i class="fas fa-video"></i> Start Camera
+    <!-- Skip to main content link for screen readers -->
+    <a href="#main-content" class="sr-only sr-only-focusable">Saltar al contenido principal</a>
+    
+    <!-- Main application container -->
+    <main id="main-content" class="camera-view" role="main" aria-label="Vista de cámara principal">
+        <!-- Camera status for screen readers -->
+        <div id="camera-status" class="camera-status" role="status" aria-live="polite" aria-label="Estado de la cámara">
+            Inicializando cámara...
+        </div>
+        
+        <!-- Camera feed with proper accessibility -->
+        <video 
+            id="camera-feed" 
+            autoplay 
+            playsinline 
+            role="img" 
+            aria-label="Transmisión de video de la cámara"
+            aria-describedby="camera-description">
+        </video>
+        
+        <!-- Hidden description for screen readers -->
+        <div id="camera-description" class="sr-only">
+            Transmisión en vivo de la cámara trasera del dispositivo. Esta vista muestra lo que la cámara está capturando en tiempo real.
+        </div>
+        
+        <!-- Start camera button with enhanced accessibility -->
+        <button 
+            id="start-camera" 
+            class="control-button camera-start-button"
+            aria-label="Iniciar cámara"
+            aria-describedby="start-camera-description"
+            role="button">
+            <i class="fas fa-video" aria-hidden="true"></i> 
+            <span>Iniciar Cámara</span>
         </button>
+        
+        <!-- Hidden description for start camera button -->
+        <div id="start-camera-description" class="sr-only">
+            Presiona este botón para activar la cámara del dispositivo. La cámara se utilizará para capturar imágenes y analizar el entorno.
+        </div>
     </main>
 
-    <footer class="control-panel">
-        <button id="capture-and-record-button" class="control-button" aria-label="Take a picture and start recording">
-            <i class="fas fa-camera"></i>
+    <!-- Control panel with enhanced accessibility -->
+    <footer class="control-panel" role="toolbar" aria-label="Panel de controles">
+        <!-- Capture and record button with comprehensive accessibility -->
+        <button 
+            id="capture-and-record-button" 
+            class="control-button" 
+            aria-label="Capturar imagen y comenzar grabación de audio"
+            aria-describedby="capture-record-description"
+            aria-pressed="false"
+            role="button">
+            <i class="fas fa-camera" aria-hidden="true"></i>
+            <span class="sr-only">Capturar y Grabar</span>
         </button>
+        
+        <!-- Hidden description for capture and record button -->
+        <div id="capture-record-description" class="sr-only">
+            Presiona este botón para tomar una fotografía del entorno y comenzar a grabar audio. Mantén presionado para grabar. Presiona nuevamente para detener la grabación.
+        </div>
     </footer>
+
+    <!-- Live region for dynamic announcements -->
+    <div id="announcements" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+    
+    <!-- Status region for ongoing updates -->
+    <div id="status-updates" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <script src="mobile.js" defer></script>
 </body>

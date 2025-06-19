@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Performance optimization: Use passive event listeners
     const options = { passive: true };
 
+    // Initialize accessibility features first
+    initializeAccessibility();
+
     // ALPHA VERSION: Clear all caches and unregister service workers
     await clearAllCaches();
 
@@ -82,7 +85,8 @@ async function initializeCamera() {
             videoElement.onloadedmetadata = () => {
                 videoElement.play();
                 if (cameraStatus) {
-                    cameraStatus.textContent = 'Camera ready';
+                    cameraStatus.textContent = 'Cámara lista';
+                    announceToScreenReader('Cámara inicializada y lista para usar');
                 }
                 resolve();
             };
@@ -90,9 +94,10 @@ async function initializeCamera() {
     } catch (error) {
         console.error('Error accessing camera:', error);
         if (cameraStatus) {
-            cameraStatus.textContent = 'Camera access denied';
+            cameraStatus.textContent = 'Acceso a cámara denegado';
         }
-        showErrorMessage('Camera access is required for this application to work.');
+        showErrorMessage('Se requiere acceso a la cámara para que esta aplicación funcione.');
+        announceToScreenReader('Error: No se pudo acceder a la cámara');
         throw error; // Re-throw to handle it in the calling function
     }
 }
@@ -109,7 +114,8 @@ function initializeControls() {
     captureAndRecordButton.addEventListener('click', async () => {
         if (!isRecording) {
             if (!currentSession) {
-                showErrorMessage('No active session. Please refresh the page.');
+                showErrorMessage('No hay sesión activa. Por favor, recarga la página.');
+                announceToScreenReader('Error: No hay sesión activa');
                 return;
             }
 
@@ -173,14 +179,15 @@ function initializeControls() {
                 isRecording = true;
                 captureAndRecordButton.classList.add('recording');
                 captureAndRecordButton.querySelector('i').className = 'fas fa-stop';
-                captureAndRecordButton.setAttribute('aria-label', 'Stop recording');
+                captureAndRecordButton.setAttribute('aria-label', 'Detener grabación');
+                captureAndRecordButton.setAttribute('aria-pressed', 'true');
                 
                 // Vibrate for tactile feedback
                 if (navigator.vibrate) {
                     navigator.vibrate([100, 50, 100]);
                 }
 
-                announceToScreenReader('Recording started');
+                announceToScreenReader('Grabación iniciada. Imagen capturada y enviada.');
 
                 // Capture and send image in parallel
                 const canvas = document.createElement('canvas');
@@ -210,12 +217,14 @@ function initializeControls() {
                     body: formData
                 }).catch(error => {
                     console.error('Error uploading image:', error);
-                    showErrorMessage('Failed to upload image, but recording continues.');
+                    showErrorMessage('Error al subir la imagen, pero la grabación continúa.');
+                    announceToScreenReader('Error al enviar imagen');
                 });
 
             } catch (error) {
                 console.error('Error in capture and record process:', error);
-                showErrorMessage('Failed to start recording. Please try again.');
+                showErrorMessage('Error al iniciar la grabación. Por favor, inténtalo de nuevo.');
+                announceToScreenReader('Error al iniciar grabación');
             }
         } else {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -224,19 +233,21 @@ function initializeControls() {
             isRecording = false;
             captureAndRecordButton.classList.remove('recording');
             captureAndRecordButton.querySelector('i').className = 'fas fa-camera';
-            captureAndRecordButton.setAttribute('aria-label', 'Take a picture and start recording');
+            captureAndRecordButton.setAttribute('aria-label', 'Capturar imagen y comenzar grabación de audio');
+            captureAndRecordButton.setAttribute('aria-pressed', 'false');
             
             if (navigator.vibrate) {
                 navigator.vibrate(100);
             }
 
-            announceToScreenReader('Recording stopped');
+            announceToScreenReader('Grabación detenida. Audio enviado para procesamiento.');
         }
     });
 
     // Handle keyboard controls
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Space') {
+            e.preventDefault(); // Prevent page scroll
             captureAndRecordButton.click();
         }
     });
@@ -287,11 +298,15 @@ async function initializeSession() {
         currentSession = sessionData;
         console.log('Session initialized:', currentSession);
         
+        // Announce successful session initialization
+        announceToScreenReader('Sesión inicializada correctamente');
+        
         // Initialize WebSocket connection with the session ID
         await initializeWebSocket(currentSession.id);
     } catch (error) {
         console.error('Error initializing session:', error);
-        showErrorMessage('Failed to initialize session. Please try refreshing the page.');
+        showErrorMessage('Error al inicializar la sesión. Por favor, recarga la página.');
+        announceToScreenReader('Error al inicializar sesión');
     }
 }
 
@@ -375,6 +390,7 @@ function initializeWebSocket(sessionId) {
 
             socket.addEventListener('open', () => {
                 console.log('WebSocket connection established');
+                announceToScreenReader('Conexión establecida. Listo para recibir respuestas de audio.');
                 resolve();
             });
 
@@ -393,16 +409,19 @@ function initializeWebSocket(sessionId) {
 
             socket.addEventListener('error', (error) => {
                 console.error('WebSocket error:', error);
+                announceToScreenReader('Error en la conexión de audio');
                 reject(error);
             });
 
             socket.addEventListener('close', () => {
                 console.log('WebSocket connection closed');
+                announceToScreenReader('Conexión de audio cerrada');
                 // Implement reconnection logic if needed
                 socket = null;
             });
         } catch (error) {
             console.error('Error initializing WebSocket:', error);
+            announceToScreenReader('Error al inicializar conexión de audio');
             reject(error);
         }
     });
@@ -444,4 +463,45 @@ window.debugUrls = () => {
     console.log('🔍 Base URL:', CONFIG.getBaseUrl());
     console.log('🔍 WebSocket URL:', CONFIG.getWebSocketUrl());
     console.log('🔍 Is localhost:', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-}; 
+};
+
+// Initialize accessibility features for Spanish-speaking VoiceOver users
+function initializeAccessibility() {
+    // Set up live regions for dynamic announcements
+    const announcementsRegion = document.getElementById('announcements');
+    const statusRegion = document.getElementById('status-updates');
+    
+    if (!announcementsRegion) {
+        const announcements = document.createElement('div');
+        announcements.id = 'announcements';
+        announcements.className = 'sr-only';
+        announcements.setAttribute('aria-live', 'assertive');
+        announcements.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(announcements);
+    }
+    
+    if (!statusRegion) {
+        const status = document.createElement('div');
+        status.id = 'status-updates';
+        status.className = 'sr-only';
+        status.setAttribute('aria-live', 'polite');
+        status.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(status);
+    }
+    
+    // Announce app initialization
+    announceToScreenReader('Asistente Visual iniciado. Aplicación lista para usar.');
+    
+    // Set up keyboard navigation hints
+    const captureButton = document.getElementById('capture-and-record-button');
+    if (captureButton) {
+        captureButton.setAttribute('tabindex', '0');
+        captureButton.setAttribute('aria-describedby', 'capture-record-description');
+    }
+    
+    const startCameraButton = document.getElementById('start-camera');
+    if (startCameraButton) {
+        startCameraButton.setAttribute('tabindex', '0');
+        startCameraButton.setAttribute('aria-describedby', 'start-camera-description');
+    }
+} 

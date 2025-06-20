@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ALPHA VERSION: Clear all caches and unregister service workers
     await clearAllCaches();
 
+    // Request both camera and microphone permissions upfront
+    await requestMediaPermissions();
+
     // Initialize session first
     await initializeSession();
     
@@ -63,19 +66,78 @@ if ('performance' in window && 'memory' in window.performance) {
     }, 10000);
 }
 
-// Initialize camera view
-async function initializeCamera() {
-    const videoElement = document.getElementById('camera-feed');
+// Request camera and microphone permissions upfront
+async function requestMediaPermissions() {
     const cameraStatus = document.getElementById('camera-status');
     
     try {
+        // Update status for screen readers
+        if (cameraStatus) {
+            cameraStatus.textContent = 'Solicitando permisos de cámara y micrófono...';
+        }
+        announceToScreenReader('Solicitando permisos de cámara y micrófono. Por favor, concede acceso cuando se te solicite.');
+        
+        // Request both camera and microphone permissions at once
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 facingMode: 'environment', // Use back camera
                 width: { ideal: window.innerWidth },
                 height: { ideal: window.innerHeight }
             },
-            audio: false
+            audio: {
+                sampleRate: 24000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
+        
+        // Stop the stream immediately since we just needed the permissions
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Update status
+        if (cameraStatus) {
+            cameraStatus.textContent = 'Permisos concedidos';
+        }
+        announceToScreenReader('Permisos de cámara y micrófono concedidos correctamente');
+        
+        console.log('✅ Media permissions granted successfully');
+        
+    } catch (error) {
+        console.error('Error requesting media permissions:', error);
+        if (cameraStatus) {
+            cameraStatus.textContent = 'Permisos denegados';
+        }
+        
+        let errorMessage = 'Se requiere acceso a la cámara y micrófono para que esta aplicación funcione.';
+        if (error.name === 'NotAllowedError') {
+            errorMessage = 'Permisos denegados. Por favor, concede acceso a la cámara y micrófono en la configuración del navegador.';
+        } else if (error.name === 'NotFoundError') {
+            errorMessage = 'No se encontró cámara o micrófono en el dispositivo.';
+        } else if (error.name === 'NotSupportedError') {
+            errorMessage = 'Tu navegador no soporta acceso a cámara y micrófono.';
+        }
+        
+        showErrorMessage(errorMessage);
+        announceToScreenReader('Error: ' + errorMessage);
+        throw error;
+    }
+}
+
+// Initialize camera view
+async function initializeCamera() {
+    const videoElement = document.getElementById('camera-feed');
+    const cameraStatus = document.getElementById('camera-status');
+    
+    try {
+        // Since permissions are already granted, we can request camera stream directly
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment', // Use back camera
+                width: { ideal: window.innerWidth },
+                height: { ideal: window.innerHeight }
+            },
+            audio: false // We don't need audio for the video feed
         });
         
         videoElement.srcObject = stream;
@@ -94,9 +156,9 @@ async function initializeCamera() {
     } catch (error) {
         console.error('Error accessing camera:', error);
         if (cameraStatus) {
-            cameraStatus.textContent = 'Acceso a cámara denegado';
+            cameraStatus.textContent = 'Error al acceder a la cámara';
         }
-        showErrorMessage('Se requiere acceso a la cámara para que esta aplicación funcione.');
+        showErrorMessage('Error al acceder a la cámara. Por favor, recarga la página.');
         announceToScreenReader('Error: No se pudo acceder a la cámara');
         throw error; // Re-throw to handle it in the calling function
     }
@@ -126,7 +188,7 @@ function initializeControls() {
             }, 100);
 
             try {
-                // Start audio recording immediately
+                // Start audio recording immediately - permissions already granted
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 24000,
@@ -223,8 +285,19 @@ function initializeControls() {
 
             } catch (error) {
                 console.error('Error in capture and record process:', error);
-                showErrorMessage('Error al iniciar la grabación. Por favor, inténtalo de nuevo.');
-                announceToScreenReader('Error al iniciar grabación');
+                
+                // Provide specific error messages for VoiceOver users
+                let errorMessage = 'Error al iniciar la grabación. Por favor, inténtalo de nuevo.';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Permisos de micrófono denegados. Por favor, recarga la página y concede permisos.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'No se encontró micrófono en el dispositivo.';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage = 'Tu navegador no soporta grabación de audio.';
+                }
+                
+                showErrorMessage(errorMessage);
+                announceToScreenReader('Error al iniciar grabación: ' + errorMessage);
             }
         } else {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -489,8 +562,8 @@ function initializeAccessibility() {
         document.body.appendChild(status);
     }
     
-    // Announce app initialization
-    announceToScreenReader('Asistente Visual iniciado. Aplicación lista para usar.');
+    // Announce app initialization with permission information
+    announceToScreenReader('Asistente Visual iniciado. La aplicación solicitará permisos de cámara y micrófono al inicio. Esto facilita el uso con VoiceOver ya que no tendrás que conceder permisos durante la grabación.');
     
     // Set up keyboard navigation hints
     const captureButton = document.getElementById('capture-and-record-button');
